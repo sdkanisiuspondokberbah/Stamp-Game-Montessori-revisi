@@ -1,0 +1,1444 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Permainan Stempel Montessori Interaktif</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Canvas Confetti -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        montessori: {
+                            unit: '#2e7d32',       /* Satuan: Hijau */
+                            unitLight: '#4caf50',
+                            ten: '#1565c0',        /* Puluhan: Biru */
+                            tenLight: '#2196f3',
+                            hundred: '#c62828',    /* Ratusan: Merah */
+                            hundredLight: '#f44336',
+                            thousand: '#1b5e20',   /* Ribuan: Hijau Tua */
+                            thousandLight: '#388e3c',
+                            woodDark: '#3d230d',
+                            woodMed: '#7a4b22',
+                            woodLight: '#f4ece1',
+                            woodCard: '#e2cfb9'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        display: ['Fredoka', 'cursive']
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body {
+            background-color: #f4ece1;
+            background-image: radial-gradient(#d5beaa 1.5px, transparent 1.5px);
+            background-size: 24px 24px;
+            user-select: none;
+            touch-action: manipulation;
+        }
+
+        /* Ubin Stempel 3D Tactile Look */
+        .stamp-tile {
+            transition: transform 0.15s ease, box-shadow 0.15s ease;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.25), inset 0 2px 0 rgba(255,255,255,0.4);
+            cursor: grab;
+        }
+        .stamp-tile:active {
+            cursor: grabbing;
+            transform: scale(0.95);
+        }
+        .stamp-tile.selected-stamp {
+            outline: 3.5px solid #f59e0b;
+            outline-offset: 2px;
+            animation: pulseGlow 1.2s infinite alternate;
+        }
+
+        @keyframes pulseGlow {
+            from { box-shadow: 0 0 8px #f59e0b; }
+            to { box-shadow: 0 0 18px #f59e0b; }
+        }
+
+        .wood-border {
+            border: 8px solid #5a3416;
+            box-shadow: inset 0 3px 8px rgba(0,0,0,0.4), 0 12px 28px rgba(0,0,0,0.25);
+        }
+
+        .drop-zone-highlight {
+            background-color: rgba(245, 158, 11, 0.2) !important;
+            border-color: #f59e0b !important;
+            border-style: dashed !important;
+        }
+
+        /* Animasi Split Shatter Burst */
+        @keyframes shatterPop {
+            0% { transform: scale(0.3) rotate(-15deg); opacity: 0; }
+            50% { transform: scale(1.25) rotate(5deg); }
+            100% { transform: scale(1) rotate(0deg); opacity: 1; }
+        }
+        .animate-split {
+            animation: shatterPop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+
+        /* Particle Burst Effect Container */
+        .particle-container {
+            position: absolute;
+            pointer-events: none;
+            z-index: 50;
+        }
+        .particle {
+            position: absolute;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            animation: particleFade 0.6s ease-out forwards;
+        }
+        @keyframes particleFade {
+            0% { transform: translate(0, 0) scale(1); opacity: 1; }
+            100% { transform: translate(var(--dx), var(--dy)) scale(0); opacity: 0; }
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #e2cfb9; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb { background: #7a4b22; border-radius: 4px; }
+    </style>
+</head>
+<body class="min-h-screen text-slate-800 flex flex-col font-sans">
+
+    <!-- Header Navigation -->
+    <header class="bg-montessori-woodDark text-amber-50 shadow-xl px-4 py-3 sticky top-0 z-30 border-b-4 border-amber-900">
+        <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-2xl bg-amber-600 border-2 border-amber-300 flex items-center justify-center text-white font-display text-xl font-bold shadow-md">
+                    <i class="fa-solid fa-shapes"></i>
+                </div>
+                <div>
+                    <h1 class="font-display text-xl md:text-2xl font-bold tracking-wide text-amber-100 leading-none">Stempel Montessori</h1>
+                    <p class="text-xs text-amber-300/90 font-medium">Auto-Split & Nilai Tempat Interaktif</p>
+                </div>
+            </div>
+
+            <!-- Mode Selector Tabs -->
+            <div class="flex bg-amber-950/80 p-1 rounded-2xl border border-amber-700/60 text-xs md:text-sm font-medium overflow-x-auto max-w-full">
+                <button id="btn-mode-free" onclick="setGameMode('free')" class="mode-tab px-3 py-1.5 rounded-xl transition flex items-center gap-1.5 bg-amber-500 text-white font-bold shadow">
+                    <i class="fa-solid fa-hand-pointer"></i> Bebas
+                </button>
+                <button id="btn-mode-add" onclick="setGameMode('add')" class="mode-tab px-3 py-1.5 rounded-xl transition flex items-center gap-1.5 text-amber-200 hover:text-white">
+                    <i class="fa-solid fa-plus"></i> Tambah
+                </button>
+                <button id="btn-mode-sub" onclick="setGameMode('sub')" class="mode-tab px-3 py-1.5 rounded-xl transition flex items-center gap-1.5 text-amber-200 hover:text-white">
+                    <i class="fa-solid fa-minus"></i> Kurang
+                </button>
+                <button id="btn-mode-muldiv" onclick="setGameMode('muldiv')" class="mode-tab px-3 py-1.5 rounded-xl transition flex items-center gap-1.5 text-amber-200 hover:text-white">
+                    <i class="fa-solid fa-users"></i> Bagi & Kali (Skittles)
+                </button>
+                <button id="btn-mode-quiz" onclick="setGameMode('quiz')" class="mode-tab px-3 py-1.5 rounded-xl transition flex items-center gap-1.5 text-amber-200 hover:text-white">
+                    <i class="fa-solid fa-trophy"></i> Kuis
+                </button>
+            </div>
+
+            <!-- Controls -->
+            <div class="flex items-center gap-2">
+                <button id="btn-sound" onclick="toggleSound()" class="w-9 h-9 rounded-xl bg-amber-900 hover:bg-amber-800 border border-amber-700 flex items-center justify-center text-amber-200 transition" title="Efek Suara">
+                    <i id="icon-sound" class="fa-solid fa-volume-high"></i>
+                </button>
+                <button onclick="openGuideModal()" class="w-9 h-9 rounded-xl bg-amber-900 hover:bg-amber-800 border border-amber-700 flex items-center justify-center text-amber-200 transition" title="Panduan">
+                    <i class="fa-solid fa-circle-question"></i>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="flex-1 max-w-7xl w-full mx-auto p-3 md:p-5 flex flex-col gap-4">
+
+        <!-- Mode Specific Interactive Banner -->
+        <div id="mode-banner" class="bg-amber-100/90 rounded-2xl p-4 border-2 border-amber-800/20 shadow-md flex flex-col md:flex-row items-center justify-between gap-4">
+            <!-- Dynamic Content Injected Here -->
+        </div>
+
+        <!-- Bank Stempel & Controls Tray -->
+        <div class="bg-amber-950 text-amber-100 p-3 md:p-4 rounded-2xl shadow-xl border-2 border-amber-700 flex flex-wrap items-center justify-between gap-3">
+            <div class="flex items-center gap-2 flex-wrap">
+                <span class="text-xs font-bold uppercase tracking-wider text-amber-400 mr-1 flex items-center gap-1">
+                    <i class="fa-solid fa-box-archive"></i> Bank Stempel:
+                </span>
+                
+                <!-- Draggable / Clickable Bank Stamps -->
+                <button onclick="addStamp(1000)" draggable="true" ondragstart="handleBankDragStart(event, 1000)" class="stamp-tile bg-montessori-thousand hover:bg-montessori-thousandLight text-white px-3 py-1.5 rounded-xl font-display font-bold text-xs md:text-sm flex items-center gap-1 border-b-2 border-emerald-950">
+                    +1000 <span class="text-[10px] opacity-75">(Ribuan)</span>
+                </button>
+                <button onclick="addStamp(100)" draggable="true" ondragstart="handleBankDragStart(event, 100)" class="stamp-tile bg-montessori-hundred hover:bg-montessori-hundredLight text-white px-3 py-1.5 rounded-xl font-display font-bold text-xs md:text-sm flex items-center gap-1 border-b-2 border-rose-950">
+                    +100 <span class="text-[10px] opacity-75">(Ratusan)</span>
+                </button>
+                <button onclick="addStamp(10)" draggable="true" ondragstart="handleBankDragStart(event, 10)" class="stamp-tile bg-montessori-ten hover:bg-montessori-tenLight text-white px-3 py-1.5 rounded-xl font-display font-bold text-xs md:text-sm flex items-center gap-1 border-b-2 border-sky-950">
+                    +10 <span class="text-[10px] opacity-75">(Puluhan)</span>
+                </button>
+                <button onclick="addStamp(1)" draggable="true" ondragstart="handleBankDragStart(event, 1)" class="stamp-tile bg-montessori-unit hover:bg-montessori-unitLight text-white px-3 py-1.5 rounded-xl font-display font-bold text-xs md:text-sm flex items-center gap-1 border-b-2 border-emerald-950">
+                    +1 <span class="text-[10px] opacity-75">(Satuan)</span>
+                </button>
+
+                <!-- Subtraction / Reduce Stamp Buttons -->
+                <div class="flex items-center gap-1 border-l border-amber-800/80 pl-2 ml-1 flex-wrap">
+                    <span class="text-[11px] font-bold text-rose-400 mr-1 flex items-center gap-1">
+                        <i class="fa-solid fa-minus-circle"></i> Kurangi:
+                    </span>
+                    <button onclick="removeStamp(1000)" class="px-2 py-1 bg-rose-950/80 hover:bg-rose-800 text-rose-200 rounded-lg text-xs font-bold transition border border-rose-700/60" title="Kurangi 1 Ribuan">-1000</button>
+                    <button onclick="removeStamp(100)" class="px-2 py-1 bg-rose-950/80 hover:bg-rose-800 text-rose-200 rounded-lg text-xs font-bold transition border border-rose-700/60" title="Kurangi 1 Ratusan">-100</button>
+                    <button onclick="removeStamp(10)" class="px-2 py-1 bg-rose-950/80 hover:bg-rose-800 text-rose-200 rounded-lg text-xs font-bold transition border border-rose-700/60" title="Kurangi 1 Puluhan">-10</button>
+                    <button onclick="removeStamp(1)" class="px-2 py-1 bg-rose-950/80 hover:bg-rose-800 text-rose-200 rounded-lg text-xs font-bold transition border border-rose-700/60" title="Kurangi 1 Satuan">-1</button>
+                </div>
+            </div>
+
+            <div class="flex items-center gap-2 ml-auto">
+                <!-- Tong Sampah / Trash Zone Drop Area -->
+                <div id="trash-zone" 
+                     ondragover="handleTrashDragOver(event)" 
+                     ondragleave="handleTrashDragLeave(event)" 
+                     ondrop="handleTrashDrop(event)"
+                     onclick="handleTrashClick()"
+                     class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-950/90 border-2 border-dashed border-rose-500/80 hover:bg-rose-900 text-rose-200 text-xs font-bold transition cursor-pointer select-none group"
+                     title="Tarik ubin ke sini atau klik ubin lalu klik kotak ini untuk membuang">
+                    <i class="fa-solid fa-trash-can text-rose-400 group-hover:scale-110 transition-transform"></i>
+                    <span>Tong Sampah</span>
+                </div>
+
+                <!-- Tombol Menu Klik-Hapus -->
+                <button id="btn-toggle-delete" onclick="toggleDeleteMode()" class="px-3 py-1.5 rounded-xl bg-amber-900/80 hover:bg-amber-800 text-xs font-semibold text-amber-200 transition border border-amber-700 flex items-center gap-1.5" title="Aktifkan mode hapus ubin cukup dengan sekali klik">
+                    <i class="fa-solid fa-eraser text-rose-400"></i> <span>Mode Klik-Hapus</span>
+                </button>
+
+                <!-- Info Ringkas Jumlah Ubin Dihapus -->
+                <div class="px-3 py-1.5 rounded-xl bg-rose-950/60 border border-rose-800/80 text-rose-200 text-xs font-bold flex items-center gap-1.5">
+                    <i class="fa-solid fa-receipt text-rose-400"></i>
+                    <span>Dibuang: <span id="deleted-total-count" class="text-white font-extrabold">0</span> ubin</span>
+                </div>
+
+                <button onclick="toggleTotalVisibility()" id="btn-toggle-total" class="px-3 py-1.5 rounded-xl bg-amber-800 hover:bg-amber-700 text-xs font-semibold text-amber-100 transition border border-amber-600 flex items-center gap-1.5">
+                    <i class="fa-solid fa-eye"></i> <span>Sembunyikan Total</span>
+                </button>
+                <button onclick="resetBoard()" class="px-3 py-1.5 rounded-xl bg-rose-900/80 hover:bg-rose-800 text-xs font-semibold text-rose-100 transition border border-rose-700 flex items-center gap-1.5">
+                    <i class="fa-solid fa-rotate-right"></i> Reset Papan
+                </button>
+            </div>
+        </div>
+
+        <!-- Matras Kerja / The Montessori Stamp Board -->
+        <div class="wood-border bg-[#e5d2be] rounded-3xl p-3 md:p-5 flex-1 shadow-2xl flex flex-col justify-between min-h-[480px]">
+            
+            <!-- Column Titles & Counters -->
+            <div class="grid grid-cols-4 gap-2 md:gap-4 mb-2">
+                <!-- Ribuan (1000) -->
+                <div class="bg-montessori-thousand text-white p-2 md:p-3 rounded-2xl shadow-md text-center border-b-4 border-emerald-950 relative">
+                    <div class="text-[10px] md:text-xs font-bold tracking-wider uppercase opacity-90">Ribuan</div>
+                    <div class="text-base md:text-xl font-display font-bold">1000</div>
+                    <div id="count-1000" class="mt-1 inline-block bg-emerald-950/60 text-emerald-200 text-xs px-2 py-0.5 rounded-full font-bold">0 ubin</div>
+                </div>
+
+                <!-- Ratusan (100) -->
+                <div class="bg-montessori-hundred text-white p-2 md:p-3 rounded-2xl shadow-md text-center border-b-4 border-rose-950 relative">
+                    <div class="text-[10px] md:text-xs font-bold tracking-wider uppercase opacity-90">Ratusan</div>
+                    <div class="text-base md:text-xl font-display font-bold">100</div>
+                    <div id="count-100" class="mt-1 inline-block bg-rose-950/60 text-rose-200 text-xs px-2 py-0.5 rounded-full font-bold">0 ubin</div>
+                </div>
+
+                <!-- Puluhan (10) -->
+                <div class="bg-montessori-ten text-white p-2 md:p-3 rounded-2xl shadow-md text-center border-b-4 border-sky-950 relative">
+                    <div class="text-[10px] md:text-xs font-bold tracking-wider uppercase opacity-90">Puluhan</div>
+                    <div class="text-base md:text-xl font-display font-bold">10</div>
+                    <div id="count-10" class="mt-1 inline-block bg-sky-950/60 text-sky-200 text-xs px-2 py-0.5 rounded-full font-bold">0 ubin</div>
+                </div>
+
+                <!-- Satuan (1) -->
+                <div class="bg-montessori-unit text-white p-2 md:p-3 rounded-2xl shadow-md text-center border-b-4 border-emerald-950 relative">
+                    <div class="text-[10px] md:text-xs font-bold tracking-wider uppercase opacity-90">Satuan</div>
+                    <div class="text-base md:text-xl font-display font-bold">1</div>
+                    <div id="count-1" class="mt-1 inline-block bg-emerald-950/60 text-emerald-200 text-xs px-2 py-0.5 rounded-full font-bold">0 ubin</div>
+                </div>
+            </div>
+
+            <!-- Main Drop Area / Matras Kerja -->
+            <div class="grid grid-cols-4 gap-2 md:gap-4 flex-1 min-h-[300px] bg-amber-950/10 p-2 md:p-3 rounded-2xl border-2 border-amber-900/10 relative">
+                
+                <!-- Column 1000 Drop Zone -->
+                <div id="col-1000" 
+                     ondragover="handleDragOver(event, 1000)" 
+                     ondragleave="handleDragLeave(event, 1000)" 
+                     ondrop="handleDrop(event, 1000)"
+                     onclick="handleColumnClick(1000)"
+                     class="flex flex-col justify-end gap-2 p-1.5 md:p-2 bg-amber-100/40 rounded-xl border-2 border-transparent transition-all min-h-[260px] relative">
+                    <div id="stamps-1000-sec2" class="flex flex-wrap gap-1.5 justify-center content-start min-h-[30px] border-b-2 border-dashed border-amber-700/20 pb-2 hidden"></div>
+                    <div id="stamps-1000" class="flex flex-wrap gap-1.5 justify-center content-start flex-1"></div>
+                    <div class="col-hint text-[10px] text-amber-800/60 font-bold text-center pointer-events-none">Tarik ubin ke sini</div>
+                </div>
+
+                <!-- Column 100 Drop Zone -->
+                <div id="col-100" 
+                     ondragover="handleDragOver(event, 100)" 
+                     ondragleave="handleDragLeave(event, 100)" 
+                     ondrop="handleDrop(event, 100)"
+                     onclick="handleColumnClick(100)"
+                     class="flex flex-col justify-end gap-2 p-1.5 md:p-2 bg-amber-100/40 rounded-xl border-2 border-transparent transition-all min-h-[260px] relative">
+                    <div id="stamps-100-sec2" class="flex flex-wrap gap-1.5 justify-center content-start min-h-[30px] border-b-2 border-dashed border-amber-700/20 pb-2 hidden"></div>
+                    <div id="stamps-100" class="flex flex-wrap gap-1.5 justify-center content-start flex-1"></div>
+                    <div class="col-hint text-[10px] text-amber-800/60 font-bold text-center pointer-events-none">Tarik ubin ke sini</div>
+                </div>
+
+                <!-- Column 10 Drop Zone -->
+                <div id="col-10" 
+                     ondragover="handleDragOver(event, 10)" 
+                     ondragleave="handleDragLeave(event, 10)" 
+                     ondrop="handleDrop(event, 10)"
+                     onclick="handleColumnClick(10)"
+                     class="flex flex-col justify-end gap-2 p-1.5 md:p-2 bg-amber-100/40 rounded-xl border-2 border-transparent transition-all min-h-[260px] relative">
+                    <div id="stamps-10-sec2" class="flex flex-wrap gap-1.5 justify-center content-start min-h-[30px] border-b-2 border-dashed border-amber-700/20 pb-2 hidden"></div>
+                    <div id="stamps-10" class="flex flex-wrap gap-1.5 justify-center content-start flex-1"></div>
+                    <div class="col-hint text-[10px] text-amber-800/60 font-bold text-center pointer-events-none">Tarik ubin ke sini</div>
+                </div>
+
+                <!-- Column 1 Drop Zone -->
+                <div id="col-1" 
+                     ondragover="handleDragOver(event, 1)" 
+                     ondragleave="handleDragLeave(event, 1)" 
+                     ondrop="handleDrop(event, 1)"
+                     onclick="handleColumnClick(1)"
+                     class="flex flex-col justify-end gap-2 p-1.5 md:p-2 bg-amber-100/40 rounded-xl border-2 border-transparent transition-all min-h-[260px] relative">
+                    <div id="stamps-1-sec2" class="flex flex-wrap gap-1.5 justify-center content-start min-h-[30px] border-b-2 border-dashed border-amber-700/20 pb-2 hidden"></div>
+                    <div id="stamps-1" class="flex flex-wrap gap-1.5 justify-center content-start flex-1"></div>
+                    <div class="col-hint text-[10px] text-amber-800/60 font-bold text-center pointer-events-none">Tarik ubin ke sini</div>
+                </div>
+
+            </div>
+
+            <!-- Skittles Area (Visible in Pembagian & Perkalian mode) -->
+            <div id="skittles-area" class="mt-3 p-3 bg-amber-900/20 rounded-2xl border border-amber-800/30 hidden">
+                <div class="text-xs font-bold text-amber-900 mb-2 flex items-center gap-2">
+                    <i class="fa-solid fa-users"></i> Figur Skittles (Pembagi):
+                </div>
+                <div id="skittles-container" class="flex flex-wrap items-center justify-around gap-2">
+                    <!-- Dynamic Skittles render here -->
+                </div>
+            </div>
+
+            <!-- Regrouping Bar (Tukar 10 ubin ke 1 Ubin Kiri) -->
+            <div class="grid grid-cols-4 gap-2 md:gap-4 mt-3">
+                <div class="text-center text-[11px] font-bold text-amber-900/70 flex items-center justify-center">⚡ Auto-Split aktif saat ditarik ke kanan!</div>
+                <div>
+                    <button onclick="regroupStamps(100)" id="btn-group-100" class="w-full py-1.5 px-2 bg-emerald-700 hover:bg-emerald-800 disabled:opacity-40 text-white text-[11px] md:text-xs font-bold rounded-xl shadow transition flex items-center justify-center gap-1">
+                        <i class="fa-solid fa-arrow-left"></i> Tukar 10 (1 Ribuan)
+                    </button>
+                </div>
+                <div>
+                    <button onclick="regroupStamps(10)" id="btn-group-10" class="w-full py-1.5 px-2 bg-emerald-700 hover:bg-emerald-800 disabled:opacity-40 text-white text-[11px] md:text-xs font-bold rounded-xl shadow transition flex items-center justify-center gap-1">
+                        <i class="fa-solid fa-arrow-left"></i> Tukar 10 (1 Ratusan)
+                    </button>
+                </div>
+                <div>
+                    <button onclick="regroupStamps(1)" id="btn-group-1" class="w-full py-1.5 px-2 bg-emerald-700 hover:bg-emerald-800 disabled:opacity-40 text-white text-[11px] md:text-xs font-bold rounded-xl shadow transition flex items-center justify-center gap-1">
+                        <i class="fa-solid fa-arrow-left"></i> Tukar 10 (1 Puluhan)
+                    </button>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Montessori Large Number Cards Display Area -->
+        <div id="total-summary-card" class="bg-amber-100/80 rounded-2xl p-4 shadow-lg border border-amber-800/20 flex flex-wrap items-center justify-between gap-4">
+            <div class="flex items-center gap-3">
+                <div class="w-12 h-12 rounded-2xl bg-amber-800 text-amber-100 flex items-center justify-center text-xl font-bold shadow">
+                    <i class="fa-solid fa-calculator"></i>
+                </div>
+                <div>
+                    <div class="text-xs text-amber-900 font-bold uppercase tracking-wider">Hasil (Kartu Angka Montessori)</div>
+                    <div id="total-display-value" class="text-2xl md:text-3xl font-display font-bold text-slate-900 tracking-wide">0</div>
+                </div>
+            </div>
+
+            <!-- Montessori Number Cards Visual Stack -->
+            <div id="montessori-card-stack" class="flex items-center gap-1.5 font-display font-bold text-white text-sm md:text-base">
+                <div id="card-1000" class="bg-montessori-thousand px-3 py-1.5 rounded-lg shadow-md border-b-2 border-emerald-950">0</div>
+                <span>+</span>
+                <div id="card-100" class="bg-montessori-hundred px-3 py-1.5 rounded-lg shadow-md border-b-2 border-rose-950">0</div>
+                <span>+</span>
+                <div id="card-10" class="bg-montessori-ten px-3 py-1.5 rounded-lg shadow-md border-b-2 border-sky-950">0</div>
+                <span>+</span>
+                <div id="card-1" class="bg-montessori-unit px-3 py-1.5 rounded-lg shadow-md border-b-2 border-emerald-950">0</div>
+            </div>
+        </div>
+
+        <!-- Card Keterangan Ubin Dihapus / Dibuang -->
+        <div id="deleted-summary-card" class="bg-rose-950/20 rounded-2xl p-3.5 shadow-md border border-rose-800/30 flex flex-wrap items-center justify-between gap-3 text-xs">
+            <div class="flex items-center gap-2.5">
+                <div class="w-9 h-9 rounded-xl bg-rose-900/80 text-rose-200 flex items-center justify-center text-base font-bold shadow">
+                    <i class="fa-solid fa-trash-arrow-up"></i>
+                </div>
+                <div>
+                    <div class="font-bold text-rose-900 uppercase tracking-wider text-[11px]">Keterangan Ubin Dihapus / Dibuang</div>
+                    <div class="text-rose-950 font-medium">Total Nilai Dihapus: <span id="deleted-total-val" class="font-bold text-rose-700 text-sm">0</span></div>
+                </div>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-2">
+                <div class="bg-montessori-thousand text-white px-2.5 py-1 rounded-lg font-bold flex items-center gap-1 border border-emerald-900 shadow-sm" title="Ubin Ribuan Dihapus">
+                    <span>1000:</span> <span id="deleted-1000" class="text-amber-200 font-extrabold">0</span>
+                </div>
+                <div class="bg-montessori-hundred text-white px-2.5 py-1 rounded-lg font-bold flex items-center gap-1 border border-rose-900 shadow-sm" title="Ubin Ratusan Dihapus">
+                    <span>100:</span> <span id="deleted-100" class="text-amber-200 font-extrabold">0</span>
+                </div>
+                <div class="bg-montessori-ten text-white px-2.5 py-1 rounded-lg font-bold flex items-center gap-1 border border-sky-900 shadow-sm" title="Ubin Puluhan Dihapus">
+                    <span>10:</span> <span id="deleted-10" class="text-amber-200 font-extrabold">0</span>
+                </div>
+                <div class="bg-montessori-unit text-white px-2.5 py-1 rounded-lg font-bold flex items-center gap-1 border border-emerald-900 shadow-sm" title="Ubin Satuan Dihapus">
+                    <span>1:</span> <span id="deleted-1" class="text-amber-200 font-extrabold">0</span>
+                </div>
+                <button onclick="resetDeletedCount()" class="ml-1 px-2.5 py-1 bg-rose-900 hover:bg-rose-800 text-rose-100 text-[11px] font-bold rounded-lg border border-rose-700 transition" title="Reset catatan ubin dihapus">
+                    <i class="fa-solid fa-rotate-left"></i> Reset Catatan
+                </button>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Toast Notification Container -->
+    <div id="toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 max-w-sm pointer-events-none"></div>
+
+    <!-- Modal Instructions & Parent Guide -->
+    <div id="modal-guide" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-amber-50 rounded-3xl max-w-2xl w-full max-h-[90vh] overflow-y-auto border-4 border-amber-800 shadow-2xl flex flex-col">
+            <div class="bg-montessori-woodDark text-amber-100 p-4 px-6 flex items-center justify-between sticky top-0 z-10">
+                <div class="flex items-center gap-2 font-display text-xl font-bold">
+                    <i class="fa-solid fa-book-open text-amber-400"></i> Panduan Stempel Auto-Split Montessori
+                </div>
+                <button onclick="closeGuideModal()" class="text-amber-200 hover:text-white text-xl p-1">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <div class="p-6 space-y-5 text-slate-700 text-sm leading-relaxed">
+                <!-- Auto-Split Feature Highlights -->
+                <div class="bg-amber-100 p-4 rounded-2xl border border-amber-300">
+                    <h3 class="font-display font-bold text-base text-amber-950 mb-1 flex items-center gap-2">
+                        <i class="fa-solid fa-bolt text-amber-600"></i> Fitur Unggulan: Dynamic Auto-Split (Pecah Ubin)
+                    </h3>
+                    <p class="text-xs leading-normal">
+                        Saat ubin ditarik (dragged) atau dipindahkan dari kolom bernilai tinggi ke kolom yang lebih kecil di sebelah kanannya, <b>ubin tersebut otomatis pecah menjadi 10 ubin baru!</b>
+                    </p>
+                    <ul class="list-disc pl-5 mt-2 text-xs space-y-1">
+                        <li><b>1 Ribuan (1000)</b> dipindah ke Ratusan &rarr; Pecah jadi <b>10 Ratusan (100)</b>.</li>
+                        <li><b>1 Ratusan (100)</b> dipindah ke Puluhan &rarr; Pecah jadi <b>10 Puluhan (10)</b>.</li>
+                        <li><b>1 Puluhan (10)</b> dipindah ke Satuan &rarr; Pecah jadi <b>10 Satuan (1)</b>.</li>
+                    </ul>
+                </div>
+
+                <!-- Game Modes -->
+                <div>
+                    <h3 class="font-display font-bold text-base text-slate-900 mb-2">🎮 Mode Belajar Interaktif</h3>
+                    <ol class="list-decimal pl-5 space-y-2 text-xs">
+                        <li><b>Mode Bebas</b>: Eksplorasi penambahan stempel, penukaran 10 ke 1, dan pemecahan ubin.</li>
+                        <li><b>Penjumlahan</b>: Susun dua bilangan di sekat atas dan bawah, gabungkan, lalu lebur setiap 10 ubin.</li>
+                        <li><b>Pengurangan (Meminjam/Borrowing)</b>: Sangat cocok dengan fitur Auto-Split! Jika ubin di kolom satuan/puluhan tidak cukup dikurangi, tarik ubin dari sebelah kiri dan lihat langsung membelah jadi 10 ubin.</li>
+                        <li><b>Bagi & Kali (Skittles)</b>: Menggunakan figur orang-orangan Montessori (Skittles) untuk membagi ubin secara adil kepada setiap figur.</li>
+                        <li><b>Tantangan Kuis</b>: Latihan soal otomatis tingkat mudah hingga sulit.</li>
+                    </ol>
+                </div>
+
+                <!-- Tips -->
+                <div class="bg-emerald-50 p-4 rounded-2xl border border-emerald-200 text-emerald-900 text-xs">
+                    <b>💡 Tips Aksesibilitas Mobile & Tablet:</b> Selain Drag & Drop, anak juga bisa mengetuk (tap/click) ubin untuk memilihnya, lalu mengetuk kolom tujuan untuk memindahkannya!
+                </div>
+            </div>
+
+            <div class="p-4 bg-amber-100/50 border-t border-amber-200 text-right sticky bottom-0">
+                <button onclick="closeGuideModal()" class="px-5 py-2 bg-montessori-woodMed hover:bg-montessori-woodDark text-white font-bold rounded-xl shadow transition">
+                    Mulai Bermain!
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript Game Logic -->
+    <script>
+        // Global State Management
+        const state = {
+            mode: 'free', // 'free', 'add', 'sub', 'muldiv', 'quiz'
+            columns: { 1000: 0, 100: 0, 10: 0, 1: 0 },
+            columnsSec2: { 1000: 0, 100: 0, 10: 0, 1: 0 },
+            deletedCount: { 1000: 0, 100: 0, 10: 0, 1: 0 },
+            deleteMode: false,
+            selectedStamp: null, // For click-to-move accessibility { val, isSec2 }
+            draggedStampVal: null,
+            draggedStampCol: null,
+            draggedStampIsSec2: false,
+            isBankDrag: false,
+            showTotal: true,
+            soundEnabled: true,
+            // Mode Specific
+            skittleCount: 3,
+            addNum1: 0, addNum2: 0, addMerged: false,
+            subNum1: 0, subNum2: 0,
+            quizProblem: null, quizScore: 0, quizDifficulty: 'easy'
+        };
+
+        // Web Audio API Synthesizer
+        const AudioEngine = {
+            ctx: null,
+            init() {
+                if (!this.ctx) {
+                    const AudioContext = window.AudioContext || window.webkitAudioContext;
+                    this.ctx = new AudioContext();
+                }
+            },
+            playPop() {
+                if (!state.soundEnabled) return;
+                this.init();
+                if (this.ctx.state === 'suspended') this.ctx.resume();
+                
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(520, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(180, this.ctx.currentTime + 0.08);
+                
+                gain.gain.setValueAtTime(0.3, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.08);
+                
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.08);
+            },
+            playTrash() {
+                if (!state.soundEnabled) return;
+                this.init();
+                if (this.ctx.state === 'suspended') this.ctx.resume();
+
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(280, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(70, this.ctx.currentTime + 0.12);
+
+                gain.gain.setValueAtTime(0.25, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.12);
+
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.12);
+            },
+            playSplitShatter() {
+                if (!state.soundEnabled) return;
+                this.init();
+                if (this.ctx.state === 'suspended') this.ctx.resume();
+
+                const now = this.ctx.currentTime;
+                [600, 900, 1200, 1500].forEach((freq, i) => {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(freq, now + i * 0.02);
+                    osc.frequency.exponentialRampToValueAtTime(200, now + i * 0.02 + 0.1);
+
+                    gain.gain.setValueAtTime(0.2, now + i * 0.02);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.02 + 0.1);
+
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start(now + i * 0.02);
+                    osc.stop(now + i * 0.02 + 0.1);
+                });
+            },
+            playChime() {
+                if (!state.soundEnabled) return;
+                this.init();
+                if (this.ctx.state === 'suspended') this.ctx.resume();
+
+                const now = this.ctx.currentTime;
+                [523.25, 659.25, 783.99, 1046.50].forEach((freq, idx) => {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(freq, now + idx * 0.05);
+                    
+                    gain.gain.setValueAtTime(0.25, now + idx * 0.05);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.05 + 0.25);
+                    
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start(now + idx * 0.05);
+                    osc.stop(now + idx * 0.05 + 0.25);
+                });
+            },
+            playSuccess() {
+                if (!state.soundEnabled) return;
+                this.init();
+                if (this.ctx.state === 'suspended') this.ctx.resume();
+
+                const now = this.ctx.currentTime;
+                [523.25, 659.25, 783.99, 1046.50, 1318.51].forEach((freq, idx) => {
+                    const osc = this.ctx.createOscillator();
+                    const gain = this.ctx.createGain();
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(freq, now + idx * 0.08);
+                    
+                    gain.gain.setValueAtTime(0.3, now + idx * 0.08);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.08 + 0.4);
+                    
+                    osc.connect(gain);
+                    gain.connect(this.ctx.destination);
+                    osc.start(now + idx * 0.08);
+                    osc.stop(now + idx * 0.08 + 0.4);
+                });
+            }
+        };
+
+        // Format Helper
+        function formatNumber(num) {
+            return num.toLocaleString('id-ID');
+        }
+
+        // Toast Notification Function
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toast-container');
+            if (!container) return;
+
+            const toast = document.createElement('div');
+            let bgClass = 'bg-slate-800 text-white';
+            if (type === 'success') bgClass = 'bg-emerald-600 text-white font-bold';
+            if (type === 'warning') bgClass = 'bg-amber-600 text-white font-bold';
+            if (type === 'info') bgClass = 'bg-sky-700 text-white font-bold';
+
+            toast.className = `${bgClass} px-4 py-2.5 rounded-xl shadow-xl text-xs md:text-sm flex items-center gap-2 pointer-events-auto transform translate-y-2 opacity-0 transition-all duration-300`;
+            toast.innerHTML = message;
+
+            container.appendChild(toast);
+
+            requestAnimationFrame(() => {
+                toast.classList.remove('translate-y-2', 'opacity-0');
+            });
+
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-y-2');
+                setTimeout(() => toast.remove(), 300);
+            }, 3200);
+        }
+
+        window.onload = function() {
+            setGameMode('free');
+            updateDeletedDisplay();
+        };
+
+        function toggleSound() {
+            state.soundEnabled = !state.soundEnabled;
+            const icon = document.getElementById('icon-sound');
+            if (state.soundEnabled) {
+                icon.className = 'fa-solid fa-volume-high';
+                AudioEngine.playPop();
+            } else {
+                icon.className = 'fa-solid fa-volume-xmark text-rose-300';
+            }
+        }
+
+        function openGuideModal() {
+            const modal = document.getElementById('modal-guide');
+            if (modal) modal.classList.remove('hidden');
+            AudioEngine.playPop();
+        }
+
+        function closeGuideModal() {
+            const modal = document.getElementById('modal-guide');
+            if (modal) modal.classList.add('hidden');
+            AudioEngine.playPop();
+        }
+
+        function toggleTotalVisibility() {
+            state.showTotal = !state.showTotal;
+            const btn = document.getElementById('btn-toggle-total');
+            const summaryVal = document.getElementById('total-display-value');
+            const cardStack = document.getElementById('montessori-card-stack');
+
+            if (state.showTotal) {
+                btn.innerHTML = `<i class="fa-solid fa-eye"></i> <span>Sembunyikan Total</span>`;
+                summaryVal.classList.remove('blur-md');
+                cardStack.classList.remove('opacity-20');
+            } else {
+                btn.innerHTML = `<i class="fa-solid fa-eye-slash"></i> <span>Tampilkan Total</span>`;
+                summaryVal.classList.add('blur-md');
+                cardStack.classList.add('opacity-20');
+            }
+            AudioEngine.playPop();
+        }
+
+        // Set Game Mode
+        function setGameMode(mode) {
+            state.mode = mode;
+            document.querySelectorAll('.mode-tab').forEach(tab => {
+                tab.className = 'mode-tab px-3 py-1.5 rounded-xl transition flex items-center gap-1.5 text-amber-200 hover:text-white';
+            });
+            const activeTab = document.getElementById(`btn-mode-${mode}`);
+            if (activeTab) {
+                activeTab.className = 'mode-tab px-3 py-1.5 rounded-xl transition flex items-center gap-1.5 bg-amber-500 text-white font-bold shadow';
+            }
+
+            resetBoardState();
+            renderBanner();
+            AudioEngine.playPop();
+        }
+
+        // Render Top Banner based on Mode
+        function renderBanner() {
+            const banner = document.getElementById('mode-banner');
+            const skittlesArea = document.getElementById('skittles-area');
+
+            if (skittlesArea) {
+                if (state.mode === 'muldiv') skittlesArea.classList.remove('hidden');
+                else skittlesArea.classList.add('hidden');
+            }
+
+            if (state.mode === 'free') {
+                banner.innerHTML = `
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-2xl bg-amber-500 text-white flex items-center justify-center text-xl shadow">
+                            <i class="fa-solid fa-hand-pointer"></i>
+                        </div>
+                        <div>
+                            <h2 class="font-display text-lg font-bold text-slate-900">Mode Eksplorasi Bebas (Auto-Split Enabled)</h2>
+                            <p class="text-xs text-slate-600">Coba tarik ubin bernilai tinggi ke kolom sebelah kanan untuk melihat efek ubin otomatis membelah jadi 10!</p>
+                        </div>
+                    </div>
+                `;
+            } else if (state.mode === 'add') {
+                banner.innerHTML = `
+                    <div class="flex flex-col md:flex-row items-center justify-between w-full gap-4">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-2xl bg-blue-600 text-white flex items-center justify-center text-xl shadow">
+                                <i class="fa-solid fa-plus"></i>
+                            </div>
+                            <div>
+                                <h2 class="font-display text-lg font-bold text-slate-900">Mode Penjumlahan</h2>
+                                <p class="text-xs text-slate-600">Susun 2 bilangan pada sekat atas & bawah, gabungkan, lalu lebur jika ada kolom &ge; 10.</p>
+                            </div>
+                        </div>
+
+                        <div class="flex flex-wrap items-center gap-2 bg-amber-200/60 p-2 rounded-xl border border-amber-300">
+                            <input type="number" id="input-add-1" placeholder="Bil 1 (cth: 358)" min="0" max="9999" class="w-24 px-2.5 py-1 text-xs md:text-sm rounded-lg border border-amber-400 font-bold text-center">
+                            <span class="font-bold text-amber-900">+</span>
+                            <input type="number" id="input-add-2" placeholder="Bil 2 (cth: 264)" min="0" max="9999" class="w-24 px-2.5 py-1 text-xs md:text-sm rounded-lg border border-amber-400 font-bold text-center">
+                            <button onclick="setupAdditionProblem()" class="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg shadow transition">
+                                Set Soal
+                            </button>
+                            <button onclick="mergeAdditionStamps()" id="btn-merge-add" class="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg shadow transition hidden">
+                                <i class="fa-solid fa-object-group"></i> Gabungkan
+                            </button>
+                        </div>
+                    </div>
+                `;
+            } else if (state.mode === 'sub') {
+                banner.innerHTML = `
+                    <div class="flex flex-col md:flex-row items-center justify-between w-full gap-4">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-2xl bg-rose-600 text-white flex items-center justify-center text-xl shadow">
+                                <i class="fa-solid fa-minus"></i>
+                            </div>
+                            <div>
+                                <h2 class="font-display text-lg font-bold text-slate-900">Mode Pengurangan (Teknik Meminjam)</h2>
+                                <p class="text-xs text-slate-600">Jika ubin kurang saat dikurangi, tarik ubin dari kolom sebelah kiri untuk otomatis pecah jadi 10 ubin!</p>
+                            </div>
+                        </div>
+
+                        <div class="flex flex-wrap items-center gap-2 bg-amber-200/60 p-2 rounded-xl border border-amber-300">
+                            <input type="number" id="input-sub-1" placeholder="Awal (cth: 412)" min="0" max="9999" class="w-24 px-2.5 py-1 text-xs md:text-sm rounded-lg border border-amber-400 font-bold text-center">
+                            <span class="font-bold text-amber-900">-</span>
+                            <input type="number" id="input-sub-2" placeholder="Kurang (cth: 185)" min="0" max="9999" class="w-24 px-2.5 py-1 text-xs md:text-sm rounded-lg border border-amber-400 font-bold text-center">
+                            <button onclick="setupSubtractionProblem()" class="px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-lg shadow transition">
+                                Set Soal
+                            </button>
+                        </div>
+                    </div>
+                `;
+            } else if (state.mode === 'muldiv') {
+                banner.innerHTML = `
+                    <div class="flex flex-col md:flex-row items-center justify-between w-full gap-4">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-2xl bg-emerald-600 text-white flex items-center justify-center text-xl shadow">
+                                <i class="fa-solid fa-users"></i>
+                            </div>
+                            <div>
+                                <h2 class="font-display text-lg font-bold text-slate-900">Mode Pembagian & Perkalian (Skittles)</h2>
+                                <p class="text-xs text-slate-600">Gunakan orang-orangan Montessori (Skittles) di bawah untuk membagi/mengelompokkan ubin!</p>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center gap-3 bg-amber-200/60 p-2 rounded-xl border border-amber-300">
+                            <span class="text-xs font-bold text-amber-900">Jumlah Skittles (Pembagi):</span>
+                            <select onchange="changeSkittlesCount(this.value)" class="text-xs bg-amber-50 border border-amber-400 font-bold rounded-lg p-1.5">
+                                <option value="2">2 Orang (Skittles)</option>
+                                <option value="3" selected>3 Orang (Skittles)</option>
+                                <option value="4">4 Orang (Skittles)</option>
+                            </select>
+                        </div>
+                    </div>
+                `;
+                renderSkittlesArea();
+            } else if (state.mode === 'quiz') {
+                banner.innerHTML = `
+                    <div class="flex flex-col md:flex-row items-center justify-between w-full gap-4">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-2xl bg-amber-600 text-white flex items-center justify-center text-xl shadow">
+                                <i class="fa-solid fa-trophy"></i>
+                            </div>
+                            <div>
+                                <h2 class="font-display text-lg font-bold text-slate-900">Tantangan Kuis Stempel</h2>
+                                <p class="text-xs text-slate-600">Selesaikan soal di bawah dengan memanfaatkan auto-split & penukaran ubin!</p>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center gap-3 bg-white/80 p-2 px-3 rounded-xl border border-amber-300">
+                            <select id="select-difficulty" onchange="changeQuizDifficulty(this.value)" class="text-xs bg-amber-50 border border-amber-300 font-bold rounded-lg p-1.5">
+                                <option value="easy">Mudah (2 Digit)</option>
+                                <option value="medium">Sedang (3 Digit)</option>
+                                <option value="hard">Sulit (4 Digit)</option>
+                            </select>
+
+                            <button onclick="generateQuizProblem()" class="px-3 py-1.5 bg-amber-700 hover:bg-amber-800 text-white text-xs font-bold rounded-lg shadow transition">
+                                <i class="fa-solid fa-arrows-rotate"></i> Soal Baru
+                            </button>
+
+                            <div class="border-l border-amber-300 pl-3 flex items-center gap-1 font-display font-bold text-amber-900">
+                                <i class="fa-solid fa-star text-amber-500"></i> Skors: <span id="quiz-score">${state.quizScore}</span>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                if (!state.quizProblem) generateQuizProblem();
+                else displayQuizProblem();
+            }
+        }
+
+        function resetBoardState() {
+            state.columns = { 1000: 0, 100: 0, 10: 0, 1: 0 };
+            state.columnsSec2 = { 1000: 0, 100: 0, 10: 0, 1: 0 };
+            state.deletedCount = { 1000: 0, 100: 0, 10: 0, 1: 0 };
+            state.selectedStamp = null;
+            state.addMerged = false;
+
+            [1000, 100, 10, 1].forEach(val => {
+                const sec2 = document.getElementById(`stamps-${val}-sec2`);
+                if (sec2) sec2.classList.add('hidden');
+            });
+
+            updateDeletedDisplay();
+            renderBoard();
+        }
+
+        function resetBoard() {
+            resetBoardState();
+            if (state.mode === 'quiz') displayQuizProblem();
+            AudioEngine.playPop();
+        }
+
+        function addStamp(val, isSec2 = false) {
+            if (isSec2) state.columnsSec2[val]++;
+            else state.columns[val]++;
+            
+            AudioEngine.playPop();
+            renderBoard();
+        }
+
+        function removeStamp(val, isSec2 = false) {
+            let removed = false;
+            if (isSec2) {
+                if (state.columnsSec2[val] > 0) {
+                    state.columnsSec2[val]--;
+                    removed = true;
+                }
+            } else {
+                if (state.columns[val] > 0) {
+                    state.columns[val]--;
+                    removed = true;
+                }
+            }
+
+            if (removed) {
+                state.deletedCount[val]++;
+                AudioEngine.playTrash();
+                showToast(`🗑️ 1 Ubin (${val}) dibuang dari papan.`, "warning");
+                updateDeletedDisplay();
+            } else {
+                showToast(`Tidak ada ubin (${val}) yang tersedia di papan!`, "info");
+            }
+            renderBoard();
+        }
+
+        // Update display data ubin yang telah dihapus
+        function updateDeletedDisplay() {
+            const vals = [1000, 100, 10, 1];
+            let totalCount = 0;
+            let totalVal = 0;
+
+            vals.forEach(val => {
+                const count = state.deletedCount[val] || 0;
+                totalCount += count;
+                totalVal += count * val;
+
+                const el = document.getElementById(`deleted-${val}`);
+                if (el) el.innerText = count;
+            });
+
+            const countEl = document.getElementById('deleted-total-count');
+            if (countEl) countEl.innerText = totalCount;
+
+            const valEl = document.getElementById('deleted-total-val');
+            if (valEl) valEl.innerText = formatNumber(totalVal);
+        }
+
+        function resetDeletedCount() {
+            state.deletedCount = { 1000: 0, 100: 0, 10: 0, 1: 0 };
+            updateDeletedDisplay();
+            AudioEngine.playPop();
+            showToast("Catatan ubin dihapus telah di-reset.", "info");
+        }
+
+        // --- TRASH / REMOVE STAMP HANDLERS ---
+        function handleTrashDragOver(e) {
+            e.preventDefault();
+            const trashEl = document.getElementById('trash-zone');
+            if (trashEl) trashEl.classList.add('bg-rose-800', 'border-rose-300', 'scale-105');
+        }
+
+        function handleTrashDragLeave(e) {
+            const trashEl = document.getElementById('trash-zone');
+            if (trashEl) trashEl.classList.remove('bg-rose-800', 'border-rose-300', 'scale-105');
+        }
+
+        function handleTrashDrop(e) {
+            e.preventDefault();
+            handleTrashDragLeave(e);
+
+            if (state.draggedStampVal) {
+                const val = state.draggedStampVal;
+                const isSec2 = state.draggedStampIsSec2 || false;
+                removeStamp(val, isSec2);
+                state.draggedStampVal = null;
+                state.draggedStampIsSec2 = false;
+            }
+        }
+
+        function handleTrashClick() {
+            if (state.selectedStamp) {
+                const { val, isSec2 } = state.selectedStamp;
+                removeStamp(val, isSec2);
+                state.selectedStamp = null;
+                renderBoard();
+            } else {
+                showToast("Pilih ubin terlebih dahulu, aktifkan Mode Klik-Hapus, atau Klik 2x pada ubin untuk membuang!", "info");
+            }
+        }
+
+        // Toggle Sakelar Mode Klik-Hapus Direct
+        function toggleDeleteMode() {
+            state.deleteMode = !state.deleteMode;
+            const btn = document.getElementById('btn-toggle-delete');
+            if (btn) {
+                if (state.deleteMode) {
+                    btn.className = 'px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-xs font-bold text-white transition border border-rose-400 flex items-center gap-1.5 ring-2 ring-rose-400 animate-pulse';
+                    btn.innerHTML = `<i class="fa-solid fa-eraser"></i> <span>Mode Hapus Aktif</span>`;
+                    showToast("Mode Hapus Aktif! Ketuk ubin mana saja (termasuk Ubin Hijau) untuk langsung membuangnya.", "warning");
+                } else {
+                    btn.className = 'px-3 py-1.5 rounded-xl bg-amber-900/80 hover:bg-amber-800 text-xs font-semibold text-amber-200 transition border border-amber-700 flex items-center gap-1.5';
+                    btn.innerHTML = `<i class="fa-solid fa-eraser"></i> <span>Mode Klik-Hapus</span>`;
+                    showToast("Mode Hapus dinonaktifkan.", "info");
+                }
+            }
+            renderBoard();
+            AudioEngine.playPop();
+        }
+
+        // --- CORE DYNAMIC AUTO-SPLIT MECHANIC ---
+        function executeAutoSplit(fromVal, toVal, targetElement = null) {
+            if (fromVal <= toVal) return false;
+
+            const ratio = fromVal / toVal; // e.g. 1000 -> 100 = 10 ratio
+            
+            if (state.columns[fromVal] >= 1) {
+                state.columns[fromVal]--;
+                state.columns[toVal] += ratio;
+
+                AudioEngine.playSplitShatter();
+                
+                if (targetElement) {
+                    triggerShatterParticles(targetElement);
+                }
+
+                showToast(`⚡ 1 Ubin (${fromVal}) dipindahkan & pecah menjadi ${ratio} Ubin (${toVal})!`, "success");
+                renderBoard();
+                return true;
+            }
+            return false;
+        }
+
+        // Regroup 10 stamps into 1 higher stamp
+        function regroupStamps(val) {
+            const nextVal = val * 10;
+            if (nextVal > 1000) return;
+
+            if (state.columns[val] >= 10) {
+                state.columns[val] -= 10;
+                state.columns[nextVal] += 1;
+                AudioEngine.playChime();
+                showToast(`🔄 10 Ubin (${val}) ditukar menjadi 1 Ubin (${nextVal})!`, "info");
+                renderBoard();
+            } else {
+                showToast(`Dibutuhkan minimal 10 ubin (${val}) untuk ditukar!`, "warning");
+            }
+        }
+
+        // --- DRAG & DROP HANDLERS ---
+        function handleBankDragStart(e, val) {
+            state.isBankDrag = true;
+            state.draggedStampVal = val;
+            e.dataTransfer.setData('text/plain', val);
+        }
+
+        function handleStampDragStart(e, val, isSec2 = false) {
+            state.isBankDrag = false;
+            state.draggedStampVal = val;
+            state.draggedStampCol = val;
+            state.draggedStampIsSec2 = isSec2;
+            e.dataTransfer.setData('text/plain', JSON.stringify({ val, isSec2 }));
+        }
+
+        function handleDragOver(e, colValTarget) {
+            e.preventDefault();
+            const colEl = document.getElementById(`col-${colValTarget}`);
+            if (colEl) colEl.classList.add('drop-zone-highlight');
+        }
+
+        function handleDragLeave(e, colValTarget) {
+            const colEl = document.getElementById(`col-${colValTarget}`);
+            if (colEl) colEl.classList.remove('drop-zone-highlight');
+        }
+
+        function handleDrop(e, colValTarget) {
+            e.preventDefault();
+            const colEl = document.getElementById(`col-${colValTarget}`);
+            if (colEl) colEl.classList.remove('drop-zone-highlight');
+
+            if (state.isBankDrag) {
+                // Dragged directly from Bank Stempel
+                addStamp(state.draggedStampVal);
+                state.isBankDrag = false;
+                return;
+            }
+
+            const fromVal = state.draggedStampVal;
+            if (!fromVal) return;
+
+            if (fromVal > colValTarget) {
+                // DYNAMIC AUTO-SPLIT triggered!
+                executeAutoSplit(fromVal, colValTarget, colEl);
+            } else if (fromVal === colValTarget) {
+                AudioEngine.playPop();
+            } else {
+                // Dragged to a higher column
+                if (state.columns[fromVal] >= 10 && colValTarget === fromVal * 10) {
+                    regroupStamps(fromVal);
+                } else {
+                    showToast(`Untuk pindah ke nilai tempat lebih besar, kumpulkan minimal 10 ubin terlebih dahulu!`, "warning");
+                }
+            }
+
+            state.draggedStampVal = null;
+            state.draggedStampCol = null;
+        }
+
+        // --- ACCESSIBILITY CLICK-TO-MOVE HANDLERS ---
+        function handleStampClick(e, val, isSec2 = false) {
+            e.stopPropagation();
+            if (state.selectedStamp && state.selectedStamp.val === val && state.selectedStamp.isSec2 === isSec2) {
+                state.selectedStamp = null;
+                renderBoard();
+                return;
+            }
+
+            state.selectedStamp = { val, isSec2 };
+            AudioEngine.playPop();
+            showToast(`Ubin ${val} dipilih. Ketuk kolom tujuan untuk memindahkannya!`, "info");
+            renderBoard();
+        }
+
+        function handleColumnClick(targetColVal) {
+            if (!state.selectedStamp) return;
+
+            const fromVal = state.selectedStamp.val;
+            const targetEl = document.getElementById(`col-${targetColVal}`);
+
+            if (fromVal > targetColVal) {
+                executeAutoSplit(fromVal, targetColVal, targetEl);
+            } else if (fromVal < targetColVal) {
+                if (state.columns[fromVal] >= 10 && targetColVal === fromVal * 10) {
+                    regroupStamps(fromVal);
+                } else {
+                    showToast(`Untuk pindah ke nilai tempat lebih besar, kumpulkan minimal 10 ubin!`, "warning");
+                }
+            }
+
+            state.selectedStamp = null;
+            renderBoard();
+        }
+
+        // --- PARTICLE BURST ANIMATION ---
+        function triggerShatterParticles(targetElement) {
+            const rect = targetElement.getBoundingClientRect();
+            const container = document.createElement('div');
+            container.className = 'particle-container';
+            container.style.left = `${rect.left + rect.width / 2}px`;
+            container.style.top = `${rect.top + rect.height / 2}px`;
+
+            const colors = ['#f59e0b', '#22c55e', '#3b82f6', '#ef4444'];
+            for (let i = 0; i < 16; i++) {
+                const particle = document.createElement('div');
+                particle.className = 'particle';
+                particle.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+                
+                const angle = Math.random() * Math.PI * 2;
+                const distance = 40 + Math.random() * 60;
+                particle.style.setProperty('--dx', `${Math.cos(angle) * distance}px`);
+                particle.style.setProperty('--dy', `${Math.sin(angle) * distance}px`);
+
+                container.appendChild(particle);
+            }
+
+            document.body.appendChild(container);
+            setTimeout(() => container.remove(), 700);
+        }
+
+        // --- RENDER MAIN BOARD & CARDS ---
+        function renderBoard() {
+            const vals = [1000, 100, 10, 1];
+            let grandTotal = 0;
+
+            vals.forEach(val => {
+                const countMain = state.columns[val];
+                const countSec2 = state.columnsSec2[val];
+                const totalCol = countMain + countSec2;
+
+                // Update Counter Pill
+                const countEl = document.getElementById(`count-${val}`);
+                if (countEl) countEl.innerText = `${totalCol} ubin`;
+
+                // Render Main Stamp Container
+                const container = document.getElementById(`stamps-${val}`);
+                if (container) {
+                    container.innerHTML = '';
+                    for (let i = 0; i < countMain; i++) {
+                        const isSelected = state.selectedStamp && state.selectedStamp.val === val && !state.selectedStamp.isSec2 && i === countMain - 1;
+                        container.appendChild(createStampElement(val, false, isSelected));
+                    }
+                }
+
+                // Render Sec2 Stamps Container
+                const containerSec2 = document.getElementById(`stamps-${val}-sec2`);
+                if (containerSec2) {
+                    containerSec2.innerHTML = '';
+                    for (let i = 0; i < countSec2; i++) {
+                        containerSec2.appendChild(createStampElement(val, true, false));
+                    }
+                }
+
+                // Enable/Disable Regroup Button
+                const btnGroup = document.getElementById(`btn-group-${val}`);
+                if (btnGroup) {
+                    btnGroup.disabled = totalCol < 10;
+                }
+
+                // Update Montessori Large Number Cards
+                const cardEl = document.getElementById(`card-${val}`);
+                if (cardEl) {
+                    cardEl.innerText = totalCol * val;
+                }
+
+                grandTotal += totalCol * val;
+            });
+
+            // Update Total Value Display
+            const totalDisplay = document.getElementById('total-display-value');
+            if (totalDisplay) totalDisplay.innerText = formatNumber(grandTotal);
+
+            // Auto Check Quiz Mode
+            if (state.mode === 'quiz' && state.quizProblem) {
+                checkQuizAnswer(grandTotal);
+            }
+        }
+
+        function createStampElement(val, isSec2, isSelected) {
+            const div = document.createElement('div');
+            div.draggable = true;
+
+            let bgColor = '';
+            let borderColor = '';
+
+            if (val === 1000) {
+                bgColor = 'bg-montessori-thousand text-white';
+                borderColor = 'border-emerald-950';
+            } else if (val === 100) {
+                bgColor = 'bg-montessori-hundred text-white';
+                borderColor = 'border-rose-950';
+            } else if (val === 10) {
+                bgColor = 'bg-montessori-ten text-white';
+                borderColor = 'border-sky-950';
+            } else if (val === 1) {
+                bgColor = 'bg-montessori-unit text-white';
+                borderColor = 'border-emerald-950';
+            }
+
+            const deleteClass = state.deleteMode ? 'ring-2 ring-rose-500 ring-offset-1 cursor-pointer hover:bg-rose-700' : '';
+            div.className = `stamp-tile ${bgColor} border-b-4 ${borderColor} font-display font-bold text-xs md:text-sm w-9 h-9 md:w-11 md:h-11 rounded-xl flex items-center justify-center cursor-grab animate-split select-none relative ${isSelected ? 'selected-stamp' : ''} ${deleteClass}`;
+            
+            if (state.deleteMode) {
+                div.innerHTML = `${val} <span class="text-[9px] text-white absolute -top-1 -right-1 bg-rose-600 rounded-full w-4 h-4 flex items-center justify-center border border-white font-bold shadow">×</span>`;
+            } else {
+                div.innerText = val;
+            }
+
+            div.title = state.deleteMode 
+                ? `Klik untuk membuang ubin (${val}) ini`
+                : `Tarik ke kolom lebih kecil untuk memecah, atau Klik 2x / Klik Kanan untuk membuang ubin (${val})`;
+
+            div.ondragstart = (e) => handleStampDragStart(e, val, isSec2);
+            div.onclick = (e) => handleStampClick(e, val, isSec2);
+            div.ondblclick = (e) => {
+                e.stopPropagation();
+                removeStamp(val, isSec2);
+            };
+            div.oncontextmenu = (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                removeStamp(val, isSec2);
+            };
+
+            return div;
+        }
+
+        function handleStampClick(e, val, isSec2 = false) {
+            e.stopPropagation();
+
+            // Jika Mode Klik-Hapus sedang aktif, sekali klik langsung membuang ubin
+            if (state.deleteMode) {
+                removeStamp(val, isSec2);
+                return;
+            }
+
+            if (state.selectedStamp && state.selectedStamp.val === val && state.selectedStamp.isSec2 === isSec2) {
+                state.selectedStamp = null;
+                renderBoard();
+                return;
+            }
+
+            state.selectedStamp = { val, isSec2 };
+            AudioEngine.playPop();
+            showToast(`Ubin ${val} dipilih. Ketuk kolom tujuan untuk memindahkannya, atau Klik 2x untuk membuang!`, "info");
+            renderBoard();
+        }
+
+        // --- MODE 2 & 3: PENJUMLAHAN & PENGURANGAN ---
+        function setupAdditionProblem() {
+            const n1 = parseInt(document.getElementById('input-add-1').value) || 0;
+            const n2 = parseInt(document.getElementById('input-add-2').value) || 0;
+
+            if (n1 <= 0 || n2 <= 0) {
+                showToast("Masukkan dua bilangan positif!", "warning");
+                return;
+            }
+
+            resetBoardState();
+            state.addNum1 = n1;
+            state.addNum2 = n2;
+
+            populateNumberToColumns(n1, state.columns);
+            populateNumberToColumns(n2, state.columnsSec2);
+
+            [1000, 100, 10, 1].forEach(val => {
+                const sec2 = document.getElementById(`stamps-${val}-sec2`);
+                if (sec2) sec2.classList.remove('hidden');
+            });
+
+            const btnMerge = document.getElementById('btn-merge-add');
+            if (btnMerge) btnMerge.classList.remove('hidden');
+
+            renderBoard();
+            AudioEngine.playPop();
+            showToast(`Stempel ${n1} dan ${n2} siap. Klik "Gabungkan" lalu lebur jika ada kolom >= 10!`, "info");
+        }
+
+        function mergeAdditionStamps() {
+            [1000, 100, 10, 1].forEach(val => {
+                state.columns[val] += state.columnsSec2[val];
+                state.columnsSec2[val] = 0;
+                const sec2 = document.getElementById(`stamps-${val}-sec2`);
+                if (sec2) sec2.classList.add('hidden');
+            });
+
+            state.addMerged = true;
+            const btnMerge = document.getElementById('btn-merge-add');
+            if (btnMerge) btnMerge.classList.add('hidden');
+
+            renderBoard();
+            AudioEngine.playChime();
+            showToast("Stempel digabungkan! Lebur 10 ubin ke sebelah kiri jika ada kolom >= 10.", "info");
+        }
+
+        function setupSubtractionProblem() {
+            const n1 = parseInt(document.getElementById('input-sub-1').value) || 0;
+            const n2 = parseInt(document.getElementById('input-sub-2').value) || 0;
+
+            if (n1 <= 0 || n2 <= 0 || n2 > n1) {
+                showToast("Pengurang harus lebih kecil dari angka awal!", "warning");
+                return;
+            }
+
+            resetBoardState();
+            state.subNum1 = n1;
+            state.subNum2 = n2;
+
+            populateNumberToColumns(n1, state.columns);
+            renderBoard();
+            AudioEngine.playPop();
+            showToast(`Stempel ${n1} dipasang. Tugasmu: Kurangi ${n2} ubin. Gunakan Auto-Split (tarik ubin kiri) jika ubin kurang!`, "info");
+        }
+
+        function populateNumberToColumns(num, colObj) {
+            colObj[1000] = Math.floor(num / 1000);
+            num %= 1000;
+            colObj[100] = Math.floor(num / 100);
+            num %= 100;
+            colObj[10] = Math.floor(num / 10);
+            colObj[1] = num % 10;
+        }
+
+        // --- MODE 4: SKITTLES MODE ---
+        function changeSkittlesCount(val) {
+            state.skittleCount = parseInt(val);
+            renderSkittlesArea();
+            showToast(`Jumlah figur Skittles diubah menjadi ${val} orang!`, "info");
+        }
+
+        function renderSkittlesArea() {
+            const container = document.getElementById('skittles-container');
+            if (!container) return;
+
+            container.innerHTML = '';
+            for (let i = 1; i <= state.skittleCount; i++) {
+                const skittle = document.createElement('div');
+                skittle.className = 'flex flex-col items-center p-2.5 bg-amber-100/90 rounded-2xl border border-amber-300 shadow-sm w-28';
+                skittle.innerHTML = `
+                    <div class="w-8 h-8 rounded-full bg-montessori-unit border-2 border-emerald-900 text-white flex items-center justify-center text-xs font-bold shadow">
+                        <i class="fa-solid fa-user"></i>
+                    </div>
+                    <span class="text-[11px] font-bold text-amber-950 mt-1">Orang ${i}</span>
+                    <span class="text-[10px] text-amber-800 font-medium">Bagian Adil</span>
+                `;
+                container.appendChild(skittle);
+            }
+        }
+
+        // --- MODE 5: KUIS LOGIC ---
+        function changeQuizDifficulty(level) {
+            state.quizDifficulty = level;
+            generateQuizProblem();
+        }
+
+        function generateQuizProblem() {
+            resetBoardState();
+
+            let min = 10, max = 99;
+            if (state.quizDifficulty === 'medium') { min = 100; max = 999; }
+            if (state.quizDifficulty === 'hard') { min = 1000; max = 9999; }
+
+            const isAddition = Math.random() > 0.4;
+            let n1 = Math.floor(Math.random() * (max - min + 1)) + min;
+            let n2 = Math.floor(Math.random() * (max - min + 1)) + min;
+
+            if (!isAddition && n2 > n1) [n1, n2] = [n2, n1];
+            const target = isAddition ? (n1 + n2) : (n1 - n2);
+
+            state.quizProblem = { n1, n2, isAddition, target, solved: false };
+
+            if (!isAddition) populateNumberToColumns(n1, state.columns);
+
+            displayQuizProblem();
+            renderBoard();
+        }
+
+        function displayQuizProblem() {
+            const prob = state.quizProblem;
+            if (!prob) return;
+
+            const banner = document.getElementById('mode-banner');
+            const opSymbol = prob.isAddition ? '+' : '-';
+
+            banner.innerHTML = `
+                <div class="flex flex-col md:flex-row items-center justify-between w-full gap-4">
+                    <div class="flex items-center gap-3">
+                        <div class="w-12 h-12 rounded-2xl bg-amber-600 text-white flex items-center justify-center text-2xl font-bold shadow-lg">
+                            <i class="fa-solid fa-puzzle-piece"></i>
+                        </div>
+                        <div>
+                            <span class="text-xs font-bold uppercase tracking-wider text-amber-700">Tantangan Kuis</span>
+                            <h2 class="font-display text-2xl font-bold text-slate-900 tracking-wide">
+                                ${formatNumber(prob.n1)} ${opSymbol} ${formatNumber(prob.n2)} = ?
+                            </h2>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center gap-3">
+                        <select onchange="changeQuizDifficulty(this.value)" class="text-xs bg-amber-50 border border-amber-300 font-bold rounded-lg p-2 shadow-sm">
+                            <option value="easy" ${state.quizDifficulty === 'easy' ? 'selected' : ''}>Mudah (2 Digit)</option>
+                            <option value="medium" ${state.quizDifficulty === 'medium' ? 'selected' : ''}>Sedang (3 Digit)</option>
+                            <option value="hard" ${state.quizDifficulty === 'hard' ? 'selected' : ''}>Sulit (4 Digit)</option>
+                        </select>
+                        <button onclick="generateQuizProblem()" class="px-4 py-2 bg-amber-800 hover:bg-amber-900 text-amber-50 text-xs font-bold rounded-xl shadow transition">
+                            <i class="fa-solid fa-forward"></i> Soal Lain
+                        </button>
+                    </div>
+                </div>
+            `;
+        }
+
+        function checkQuizAnswer(currentTotal) {
+            const prob = state.quizProblem;
+            if (!prob || prob.solved) return;
+
+            if (currentTotal === prob.target) {
+                prob.solved = true;
+                state.quizScore += 10;
+                AudioEngine.playSuccess();
+                if (typeof confetti === 'function') {
+                    confetti({
+                        particleCount: 80,
+                        spread: 70,
+                        origin: { y: 0.6 }
+                    });
+                }
+                showToast("🎉 Hebat sekali! Jawabanmu Benar (+10 Poin)!", "success");
+                const scoreEl = document.getElementById('quiz-score');
+                if (scoreEl) scoreEl.innerText = state.quizScore;
+            }
+        }
+    </script>
+</body>
+</html>
